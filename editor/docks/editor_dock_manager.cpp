@@ -1205,7 +1205,8 @@ void DockContextPopup::_dock_select_draw() {
 
 	// Draw all dock slots.
 	for (int i = 0; i < DockConstants::DOCK_SLOT_MAX; i++) {
-		int max_tabs = (i == DockConstants::DOCK_SLOT_BOTTOM) ? 6 : 3;
+		// Draw more tabs for the bottom and main screen docks.
+		int max_tabs = i == DockConstants::DOCK_SLOT_BOTTOM || i == DockConstants::DOCK_SLOT_MAIN ? 6 : 3;
 		const EditorDockManager::DockSlot &dock_slot = dock_manager->dock_slots[i];
 
 		Rect2 dock_slot_draw_rect = dock_select_rects[i].grow_individual(-dock_spacing, -dock_top_spacing, -dock_spacing, -dock_spacing);

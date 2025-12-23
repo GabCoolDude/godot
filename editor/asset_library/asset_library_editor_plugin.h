@@ -341,6 +341,7 @@ class AssetLibraryEditorPlugin : public EditorPlugin {
 	GDCLASS(AssetLibraryEditorPlugin, EditorPlugin);
 
 	EditorAssetLibrary *addon_library = nullptr;
+	EditorDock *asset_dock = nullptr;
 
 public:
 	static bool is_available();

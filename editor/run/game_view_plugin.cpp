@@ -1474,9 +1474,8 @@ void GameViewPluginBase::selected_notify() {
 #ifndef ANDROID_ENABLED
 void GameViewPluginBase::make_visible(bool p_visible) {
 	if (p_visible) {
+		game_dock->make_visible();
 		window_wrapper->show();
-	} else {
-		window_wrapper->hide();
 	}
 }
 
@@ -1497,9 +1496,17 @@ void GameViewPluginBase::setup(Ref<GameViewDebugger> p_debugger, EmbeddedProcess
 	game_view = memnew(GameView(debugger, p_embedded_process, window_wrapper));
 	game_view->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 
+	game_dock = memnew(EditorDock);
+	game_dock->set_name(TTRC("Game"));
+	game_dock->set_icon_name("Game");
+	game_dock->set_dock_shortcut(ED_GET_SHORTCUT("editor/editor_game"));
+	game_dock->set_default_slot(DockConstants::DOCK_SLOT_MAIN);
+	game_dock->set_available_layouts(EditorDock::DOCK_LAYOUT_ALL);
+	add_dock(game_dock);
+
 	window_wrapper->set_wrapped_control(game_view, nullptr);
 
-	EditorNode::get_singleton()->get_editor_main_screen()->get_control()->add_child(window_wrapper);
+	game_dock->add_child(window_wrapper);
 	window_wrapper->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 	window_wrapper->hide();
 	window_wrapper->connect("window_visibility_changed", callable_mp(this, &GameViewPlugin::_focus_another_editor).unbind(1));

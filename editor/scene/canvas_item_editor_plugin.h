@@ -617,6 +617,7 @@ class CanvasItemEditorPlugin : public EditorPlugin {
 	GDCLASS(CanvasItemEditorPlugin, EditorPlugin);
 
 	CanvasItemEditor *canvas_item_editor = nullptr;
+	EditorDock *canvas_item_dock = nullptr;
 
 protected:
 	void _notification(int p_what);

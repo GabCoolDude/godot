@@ -10367,12 +10367,12 @@ Node3DEditor::~Node3DEditor() {
 
 void Node3DEditorPlugin::make_visible(bool p_visible) {
 	if (p_visible) {
+		node_3d_dock->make_visible();
 		spatial_editor->show();
 		spatial_editor->set_process(true);
 		spatial_editor->set_physics_process(true);
 		spatial_editor->refresh_dirty_gizmos();
 	} else {
-		spatial_editor->hide();
 		spatial_editor->set_process(false);
 		spatial_editor->set_physics_process(false);
 	}
@@ -10528,9 +10528,17 @@ Vector<Node3D *> Node3DEditor::gizmo_bvh_frustum_query(const Vector<Plane> &p_fr
 }
 
 Node3DEditorPlugin::Node3DEditorPlugin() {
+	node_3d_dock = memnew(EditorDock);
+	node_3d_dock->set_name(TTRC("3D"));
+	node_3d_dock->set_icon_name("3D");
+	node_3d_dock->set_dock_shortcut(ED_GET_SHORTCUT("editor/editor_3d"));
+	node_3d_dock->set_default_slot(DockConstants::DOCK_SLOT_MAIN);
+	node_3d_dock->set_available_layouts(EditorDock::DOCK_LAYOUT_ALL);
+	add_dock(node_3d_dock);
+
 	spatial_editor = memnew(Node3DEditor);
 	spatial_editor->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	EditorNode::get_singleton()->get_editor_main_screen()->get_control()->add_child(spatial_editor);
+	node_3d_dock->add_child(spatial_editor);
 
 	spatial_editor->hide();
 }

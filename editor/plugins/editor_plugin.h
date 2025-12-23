@@ -99,6 +99,7 @@ public:
 		DOCK_SLOT_RIGHT_UR = DockConstants::DOCK_SLOT_RIGHT_UR,
 		DOCK_SLOT_RIGHT_BR = DockConstants::DOCK_SLOT_RIGHT_BR,
 		DOCK_SLOT_BOTTOM = DockConstants::DOCK_SLOT_BOTTOM,
+		DOCK_SLOT_MIDDLE = DockConstants::DOCK_SLOT_MAIN,
 		DOCK_SLOT_MAX = DockConstants::DOCK_SLOT_MAX
 	};
 

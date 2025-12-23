@@ -1080,6 +1080,7 @@ class Node3DEditorPlugin : public EditorPlugin {
 	GDCLASS(Node3DEditorPlugin, EditorPlugin);
 
 	Node3DEditor *spatial_editor = nullptr;
+	EditorDock *node_3d_dock = nullptr;
 
 public:
 	Node3DEditor *get_spatial_editor() { return spatial_editor; }

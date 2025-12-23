@@ -35,6 +35,7 @@
 #include "core/io/stream_peer_tls.h"
 #include "core/os/keyboard.h"
 #include "core/version.h"
+#include "editor/docks/editor_dock.h"
 #include "editor/editor_main_screen.h"
 #include "editor/editor_node.h"
 #include "editor/editor_string_names.h"
@@ -1841,15 +1842,21 @@ bool AssetLibraryEditorPlugin::is_available() {
 void AssetLibraryEditorPlugin::make_visible(bool p_visible) {
 	if (p_visible) {
 		addon_library->show();
-	} else {
-		addon_library->hide();
+		asset_dock->make_visible();
 	}
 }
 
 AssetLibraryEditorPlugin::AssetLibraryEditorPlugin() {
+	asset_dock = memnew(EditorDock);
+	asset_dock->set_name(TTRC("Asset Library"));
+	asset_dock->set_icon_name("AssetLib");
+	asset_dock->set_dock_shortcut(ED_GET_SHORTCUT("editor/editor_assetlib"));
+	asset_dock->set_default_slot(DockConstants::DOCK_SLOT_MAIN);
+	asset_dock->set_available_layouts(EditorDock::DOCK_LAYOUT_ALL);
+	add_dock(asset_dock);
+
 	addon_library = memnew(EditorAssetLibrary);
 	addon_library->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	EditorNode::get_singleton()->get_editor_main_screen()->get_control()->add_child(addon_library);
+	asset_dock->add_child(addon_library);
 	addon_library->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
-	addon_library->hide();
 }

@@ -405,7 +405,7 @@ Control *EditorInterface::get_base_control() const {
 	return EditorNode::get_singleton()->get_gui_base();
 }
 
-VBoxContainer *EditorInterface::get_editor_main_screen() const {
+TabContainer *EditorInterface::get_editor_main_screen() const {
 	return EditorNode::get_singleton()->get_editor_main_screen()->get_control();
 }
 

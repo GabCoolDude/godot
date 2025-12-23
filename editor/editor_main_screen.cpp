@@ -35,7 +35,6 @@
 #include "editor/editor_string_names.h"
 #include "editor/plugins/editor_plugin.h"
 #include "editor/settings/editor_settings.h"
-#include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
 
 void EditorMainScreen::_notification(int p_what) {
@@ -73,10 +72,6 @@ void EditorMainScreen::_notification(int p_what) {
 			}
 		} break;
 	}
-}
-
-void EditorMainScreen::set_button_container(HBoxContainer *p_button_hb) {
-	button_hb = p_button_hb;
 }
 
 void EditorMainScreen::save_layout_to_config(Ref<ConfigFile> p_config_file, const String &p_section) const {
@@ -237,23 +232,11 @@ bool EditorMainScreen::can_auto_switch_screens() const {
 	if (selected_plugin == nullptr) {
 		return true;
 	}
-	// Only allow auto-switching if the selected button is to the left of the Script button.
-	for (int i = 0; i < button_hb->get_child_count(); i++) {
-		Button *button = Object::cast_to<Button>(button_hb->get_child(i));
-		if (button->get_text() == "Script") {
-			// Selected button is at or after the Script button.
-			return false;
-		}
-		if (button->get_text() == selected_plugin->get_plugin_name()) {
-			// Selected button is before the Script button.
-			return true;
-		}
-	}
 	return false;
 }
 
-VBoxContainer *EditorMainScreen::get_control() const {
-	return main_screen_vbox;
+TabContainer *EditorMainScreen::get_control() const {
+	return main_screen_tab;
 }
 
 void EditorMainScreen::add_main_plugin(EditorPlugin *p_editor) {
@@ -281,7 +264,6 @@ void EditorMainScreen::add_main_plugin(EditorPlugin *p_editor) {
 	tb->connect(SceneStringName(pressed), callable_mp(this, &EditorMainScreen::select).bind(buttons.size()));
 
 	buttons.push_back(tb);
-	button_hb->add_child(tb);
 	editor_table.push_back(p_editor);
 	main_editor_plugins.insert(p_editor->get_plugin_name(), p_editor);
 }
@@ -314,9 +296,8 @@ void EditorMainScreen::remove_main_plugin(EditorPlugin *p_editor) {
 }
 
 EditorMainScreen::EditorMainScreen() {
-	main_screen_vbox = memnew(VBoxContainer);
-	main_screen_vbox->set_name("MainScreen");
-	main_screen_vbox->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	main_screen_vbox->add_theme_constant_override("separation", 0);
-	add_child(main_screen_vbox);
+	main_screen_tab = memnew(TabContainer);
+	main_screen_tab->set_name("MainScreen");
+	main_screen_tab->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	add_child(main_screen_tab);
 }

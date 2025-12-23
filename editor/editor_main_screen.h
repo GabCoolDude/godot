@@ -31,6 +31,7 @@
 #pragma once
 
 #include "scene/gui/panel_container.h"
+#include "scene/gui/tab_container.h"
 
 class Button;
 class ConfigFile;
@@ -51,10 +52,9 @@ public:
 	};
 
 private:
-	VBoxContainer *main_screen_vbox = nullptr;
+	TabContainer *main_screen_tab = nullptr;
 	EditorPlugin *selected_plugin = nullptr;
 
-	HBoxContainer *button_hb = nullptr;
 	Vector<Button *> buttons;
 	Vector<EditorPlugin *> editor_table;
 	HashMap<String, EditorPlugin *> main_editor_plugins;
@@ -65,8 +65,6 @@ protected:
 	void _notification(int p_what);
 
 public:
-	void set_button_container(HBoxContainer *p_button_hb);
-
 	void save_layout_to_config(Ref<ConfigFile> p_config_file, const String &p_section) const;
 	void load_layout_from_config(Ref<ConfigFile> p_config_file, const String &p_section);
 
@@ -83,7 +81,7 @@ public:
 	EditorPlugin *get_plugin_by_name(const String &p_plugin_name) const;
 	bool can_auto_switch_screens() const;
 
-	VBoxContainer *get_control() const;
+	TabContainer *get_control() const;
 
 	void add_main_plugin(EditorPlugin *p_editor);
 	void remove_main_plugin(EditorPlugin *p_editor);

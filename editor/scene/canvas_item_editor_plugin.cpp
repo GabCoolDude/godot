@@ -6046,13 +6046,13 @@ bool CanvasItemEditorPlugin::handles(Object *p_object) const {
 
 void CanvasItemEditorPlugin::make_visible(bool p_visible) {
 	if (p_visible) {
+		canvas_item_dock->make_visible();
 		canvas_item_editor->show();
 		canvas_item_editor->set_process(true);
 		RenderingServer::get_singleton()->viewport_set_disable_2d(EditorNode::get_singleton()->get_scene_root()->get_viewport_rid(), false);
 		RenderingServer::get_singleton()->viewport_set_environment_mode(EditorNode::get_singleton()->get_scene_root()->get_viewport_rid(), RS::VIEWPORT_ENVIRONMENT_ENABLED);
 
 	} else {
-		canvas_item_editor->hide();
 		canvas_item_editor->set_process(false);
 		RenderingServer::get_singleton()->viewport_set_disable_2d(EditorNode::get_singleton()->get_scene_root()->get_viewport_rid(), true);
 		RenderingServer::get_singleton()->viewport_set_environment_mode(EditorNode::get_singleton()->get_scene_root()->get_viewport_rid(), RS::VIEWPORT_ENVIRONMENT_DISABLED);
@@ -6081,11 +6081,18 @@ void CanvasItemEditorPlugin::_notification(int p_what) {
 }
 
 CanvasItemEditorPlugin::CanvasItemEditorPlugin() {
+	canvas_item_dock = memnew(EditorDock);
+	canvas_item_dock->set_name(TTRC("2D"));
+	canvas_item_dock->set_icon_name("2D");
+	canvas_item_dock->set_dock_shortcut(ED_GET_SHORTCUT("editor/editor_2d"));
+	canvas_item_dock->set_default_slot(DockConstants::DOCK_SLOT_MAIN);
+	canvas_item_dock->set_available_layouts(EditorDock::DOCK_LAYOUT_ALL);
+	add_dock(canvas_item_dock);
+
 	canvas_item_editor = memnew(CanvasItemEditor);
 	canvas_item_editor->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	EditorNode::get_singleton()->get_editor_main_screen()->get_control()->add_child(canvas_item_editor);
+	canvas_item_dock->add_child(canvas_item_editor);
 	canvas_item_editor->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
-	canvas_item_editor->hide();
 }
 
 void CanvasItemEditorViewport::_on_mouse_exit() {

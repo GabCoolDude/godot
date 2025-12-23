@@ -267,6 +267,7 @@ class GameViewPluginBase : public EditorPlugin {
 #ifndef ANDROID_ENABLED
 	GameView *game_view = nullptr;
 	WindowWrapper *window_wrapper = nullptr;
+	EditorDock *game_dock = nullptr;
 #endif // ANDROID_ENABLED
 
 	Ref<GameViewDebugger> debugger;
@@ -295,9 +296,9 @@ public:
 
 	Ref<GameViewDebugger> get_debugger() const { return debugger; }
 
-#ifndef ANDROID_ENABLED
 	virtual void make_visible(bool p_visible) override;
 
+#ifndef ANDROID_ENABLED
 	virtual void set_window_layout(Ref<ConfigFile> p_layout) override;
 	virtual void get_window_layout(Ref<ConfigFile> p_layout) override;
 #endif // ANDROID_ENABLED

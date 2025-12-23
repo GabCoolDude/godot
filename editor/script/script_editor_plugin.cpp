@@ -4689,10 +4689,8 @@ bool ScriptEditorPlugin::handles(Object *p_object) const {
 
 void ScriptEditorPlugin::make_visible(bool p_visible) {
 	if (p_visible) {
-		window_wrapper->show();
+		script_dock->make_visible();
 		script_editor->ensure_select_current();
-	} else {
-		window_wrapper->hide();
 	}
 }
 
@@ -4806,6 +4804,14 @@ ScriptEditorPlugin::ScriptEditorPlugin() {
 	ED_SHORTCUT("script_text_editor/convert_to_lowercase", TTRC("Lowercase"), KeyModifierMask::SHIFT | Key::F5);
 	ED_SHORTCUT("script_text_editor/capitalize", TTRC("Capitalize"), KeyModifierMask::SHIFT | Key::F6);
 
+	script_dock = memnew(EditorDock);
+	script_dock->set_name(TTRC("Script Editor"));
+	script_dock->set_icon_name("Script");
+	script_dock->set_dock_shortcut(ED_GET_SHORTCUT("editor/editor_script"));
+	script_dock->set_default_slot(DockConstants::DOCK_SLOT_MAIN);
+	script_dock->set_available_layouts(EditorDock::DOCK_LAYOUT_ALL);
+	add_dock(script_dock);
+
 	window_wrapper = memnew(WindowWrapper);
 	window_wrapper->set_margins_enabled(true);
 
@@ -4813,9 +4819,8 @@ ScriptEditorPlugin::ScriptEditorPlugin() {
 	Ref<Shortcut> make_floating_shortcut = ED_SHORTCUT_AND_COMMAND("script_editor/make_floating", TTRC("Make Floating"));
 	window_wrapper->set_wrapped_control(script_editor, make_floating_shortcut);
 
-	EditorNode::get_singleton()->get_editor_main_screen()->get_control()->add_child(window_wrapper);
+	script_dock->add_child(window_wrapper);
 	window_wrapper->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-	window_wrapper->hide();
 	window_wrapper->connect("window_visibility_changed", callable_mp(this, &ScriptEditorPlugin::_window_visibility_changed));
 
 	ScriptServer::set_reload_scripts_on_save(EDITOR_GET("text_editor/behavior/files/auto_reload_and_parse_scripts_on_save"));

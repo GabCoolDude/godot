@@ -631,6 +631,7 @@ class ScriptEditorPlugin : public EditorPlugin {
 
 	ScriptEditor *script_editor = nullptr;
 	WindowWrapper *window_wrapper = nullptr;
+	EditorDock *script_dock = nullptr;
 
 	String last_editor;
 

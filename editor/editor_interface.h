@@ -34,6 +34,7 @@
 #include "core/object/class_db.h"
 #include "core/object/object.h"
 #include "core/object/script_language.h"
+#include "editor_main_screen.h"
 
 class Control;
 class CreateDialog;
@@ -120,7 +121,7 @@ public:
 	Ref<Theme> get_editor_theme() const;
 
 	Control *get_base_control() const;
-	VBoxContainer *get_editor_main_screen() const;
+	TabContainer *get_editor_main_screen() const;
 	ScriptEditor *get_script_editor() const;
 	SubViewport *get_editor_viewport_2d() const;
 	SubViewport *get_editor_viewport_3d(int p_idx = 0) const;
