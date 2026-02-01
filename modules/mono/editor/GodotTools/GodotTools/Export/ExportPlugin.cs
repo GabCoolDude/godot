@@ -99,6 +99,20 @@ namespace GodotTools.Export
                     { "default_value", false }
                 }
             );
+            exportOptionList.Add
+            (
+                new Godot.Collections.Dictionary()
+                {
+                    {
+                        "option", new Godot.Collections.Dictionary()
+                        {
+                            { "name", "dotnet/skip_dotnet_export" },
+                            { "type", (int)Variant.Type.Bool }
+                        }
+                    },
+                    { "default_value", false }
+                }
+            );
             return exportOptionList;
         }
 
@@ -171,6 +185,9 @@ namespace GodotTools.Export
         {
             _ = flags; // Unused.
 
+            if ((bool)GetOption("dotnet/skip_dotnet_export"))
+                return;
+
             if (!ProjectContainsDotNet())
                 return;
 
@@ -223,6 +240,11 @@ namespace GodotTools.Export
                     publishConfig.Archs.Add("x86_64");
                     publishConfig.Archs.Add("arm64");
                 }
+            }
+
+            if (features.Contains("wasm32"))
+            {
+                publishConfig.Archs.Add("wasm32");
             }
 
             var targets = new List<PublishConfig> { publishConfig };
@@ -510,6 +532,7 @@ namespace GodotTools.Export
                 "arm64-v8a" => "arm64",
                 "arm32" => "arm",
                 "arm64" => "arm64",
+                "wasm32" => "wasm",
                 _ => throw new ArgumentOutOfRangeException(nameof(arch), arch, "Unexpected architecture")
             };
         }

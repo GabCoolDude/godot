@@ -57,6 +57,7 @@ const GodotConfig = {
 	$GodotConfig__deps: ['$GodotRuntime'],
 	$GodotConfig: {
 		canvas: null,
+		canvas_id_ptr: null,
 		locale: 'en',
 		canvas_resize_policy: 2, // Adaptive
 		virtual_keyboard: false,
@@ -68,6 +69,7 @@ const GodotConfig = {
 		init_config: function (p_opts) {
 			GodotConfig.canvas_resize_policy = p_opts['canvasResizePolicy'];
 			GodotConfig.canvas = p_opts['canvas'];
+			GodotConfig.canvas_id_ptr = GodotRuntime.allocString(`#${GodotConfig.canvas.id}`);
 			GodotConfig.locale = p_opts['locale'] || GodotConfig.locale;
 			GodotConfig.virtual_keyboard = p_opts['virtualKeyboard'];
 			GodotConfig.persistent_drops = !!p_opts['persistentDrops'];
@@ -83,6 +85,8 @@ const GodotConfig = {
 			return Module['locateFile'](file);
 		},
 		clear: function () {
+			GodotRuntime.free(GodotConfig.canvas_id_ptr);
+			GodotConfig.canvas_id_ptr = null;
 			GodotConfig.canvas = null;
 			GodotConfig.locale = 'en';
 			GodotConfig.canvas_resize_policy = 2;

@@ -34,6 +34,7 @@ namespace GodotTools
             public const string NoConsoleLogging = "dotnet/build/no_console_logging";
             public const string CreateBinaryLog = "dotnet/build/create_binary_log";
             public const string ProblemsLayout = "dotnet/build/problems_layout";
+            public const string DisableBuildOnRun = "dotnet/build/disable_build_on_run";
         }
 
 #nullable disable
@@ -427,6 +428,8 @@ namespace GodotTools
 
         public override bool _Build()
         {
+            if((bool)_editorSettings.GetSetting(Settings.DisableBuildOnRun))
+                return true;
             return BuildManager.EditorBuildCallback();
         }
 
@@ -554,6 +557,7 @@ namespace GodotTools
             EditorDef(Settings.NoConsoleLogging, false);
             EditorDef(Settings.CreateBinaryLog, false);
             EditorDef(Settings.ProblemsLayout, Variant.From(BuildProblemsView.ProblemsLayout.Tree));
+            EditorDef(Settings.DisableBuildOnRun, false);
 
             string settingsHintStr = "Disabled";
 

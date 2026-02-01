@@ -172,10 +172,13 @@ const Engine = (function () {
 							me.rtenv['copyToFS'](file.path, file.buffer);
 						}
 						preloader.preloadedFiles.length = 0; // Clear memory
-						me.rtenv['callMain'](me.config.args);
-						initPromise = null;
-						me.installServiceWorker();
-						resolve();
+
+						// Adds optional support for custom async 'callMain'.
+						Promise.resolve(me.rtenv['callMain'](me.config.args)).then(function () {
+							initPromise = null;
+							me.installServiceWorker();
+							resolve();
+						});
 					});
 				});
 			},

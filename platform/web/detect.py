@@ -36,14 +36,16 @@ def get_tools(env: "SConsEnvironment"):
 
 
 def get_opts():
-    from SCons.Variables import BoolVariable
+    from SCons.Variables import BoolVariable, EnumVariable
 
     return [
         ("initial_memory", "Initial WASM memory (in MiB)", 32),
         # Matches default values from before Emscripten 3.1.27. New defaults are too low for Godot.
         ("stack_size", "WASM stack size (in KiB)", 5120),
         ("default_pthread_stack_size", "WASM pthread default stack size (in KiB)", 2048),
-        BoolVariable("use_assertions", "Use Emscripten runtime assertions", False),
+        EnumVariable(
+            "use_assertions", "Use Emscripten runtime assertions", "auto", ["auto", "no", "yes", "extra"], ignorecase=2
+        ),        
         BoolVariable("use_ubsan", "Use Emscripten undefined behavior sanitizer (UBSAN)", False),
         BoolVariable("use_asan", "Use Emscripten address sanitizer (ASAN)", False),
         BoolVariable("use_lsan", "Use Emscripten leak sanitizer (LSAN)", False),
@@ -58,6 +60,13 @@ def get_opts():
             "proxy_to_pthread",
             "Use Emscripten PROXY_TO_PTHREAD option to run the main application code to a separate thread",
             False,
+        ),
+        EnumVariable(
+            "use_offscreen_canvas",
+            "Use Emscripten OFFSCREENCANVAS_SUPPORT option to use offscreen canvas for rendering",
+            "auto",
+            ["auto", "no", "yes"],
+            ignorecase=2
         ),
         BoolVariable("wasm_simd", "Use WebAssembly SIMD to improve CPU performance", True),
     ]
@@ -89,6 +98,7 @@ def get_flags():
         # run-time performance.
         # Note that this overrides the "auto" behavior for target/dev_build.
         "optimize": "size",
+        "supported": ["library", "mono"],
     }
 
 
@@ -112,13 +122,26 @@ def configure(env: "SConsEnvironment"):
     cc_semver = (cc_version["major"], cc_version["minor"], cc_version["patch"])
 
     # Minimum emscripten requirements.
-    if cc_semver < (4, 0, 0):
+    if env["module_mono_enabled"] and cc_semver < (3, 1, 56):
+        print_error("The minimum Emscripten version to build Godot with C# is 3.1.56, detected: %s.%s.%s" % cc_semver)
+        sys.exit(255)
+    elif not env["module_mono_enabled"] and cc_semver < (4, 0, 0):
         print_error("The minimum Emscripten version to build Godot is 4.0.0, detected: %s.%s.%s" % cc_semver)
         sys.exit(255)
 
+    if cc_semver < (4, 0, 0):
+        print_warning(
+            "The Emscripten version for C# is %s.%s.%s while minimum supported version to build "
+            "Godot is 4.0.0, export is experimental." % cc_semver
+        )
+        if not env["disable_xr"]:
+            print_warning('XR is not supported on older Emscripten version, using "disable_xr=yes" instead.')
+            env["disable_xr"] = True
+
     env.Append(LIBEMITTER=[library_emitter])
 
-    env["EXPORTED_FUNCTIONS"] = ["_main"]
+    env["EXPORTED_FUNCTIONS"] = []
+    env["EXPORTED_FUNCTIONS_SHARED"] = []
     env["EXPORTED_RUNTIME_METHODS"] = []
 
     # Validate arch.
@@ -139,13 +162,18 @@ def configure(env: "SConsEnvironment"):
     emscripten_include_path = emcc_path.parent.joinpath("cache", "sysroot", "include")
     env.Append(CPPPATH=[emscripten_include_path])
 
-    ## Build type
+    ## Configure assertions.
+    if env["use_assertions"] == "auto":
+        env["use_assertions"] = "yes" if env.debug_features else "no"
+    if env["use_assertions"] != "no":
+        print_info("Building with enabled runtime assertions.")
+        # Else is "extra"
+        assertions_level = 1 if env["use_assertions"] == "yes" else 2
+        env.Append(LINKFLAGS=["-sASSERTIONS=%s" % assertions_level])
 
-    if env.debug_features:
+    if env["debug_symbols"]:
         # Retain function names for backtraces at the cost of file size.
         env.Append(LINKFLAGS=["--profiling-funcs"])
-    else:
-        env["use_assertions"] = True
 
     if env["use_assertions"]:
         env.Append(LINKFLAGS=["-sASSERTIONS=1"])
@@ -253,6 +281,7 @@ def configure(env: "SConsEnvironment"):
     if env["opengl3"]:
         env.AppendUnique(CPPDEFINES=["GLES3_ENABLED"])
         # This setting just makes WebGL 2 APIs available, it does NOT disable WebGL 1.
+        env.Append(LINKFLAGS=["-sMIN_WEBGL_VERSION=2"])
         env.Append(LINKFLAGS=["-sMAX_WEBGL_VERSION=2"])
         # Allow use to take control of swapping WebGL buffers.
         env.Append(LINKFLAGS=["-sOFFSCREEN_FRAMEBUFFER=1"])
@@ -290,25 +319,61 @@ def configure(env: "SConsEnvironment"):
         if env["proxy_to_pthread"]:
             print_warning("GDExtension support requires proxy_to_pthread=no, disabling proxy to pthread.")
             env["proxy_to_pthread"] = False
+        if env["library_type"] == "static_library":
+            print_warning("GDExtension support compiles Godot code as a side library, switching to library_type=shared_library for ease of access.")
+            env["library_type"] = "shared_library"
 
         env.Append(CPPDEFINES=["WEB_DLINK_ENABLED"])
+        env.extra_suffix = ".dlink" + env.extra_suffix
+
+    if env["dlink_enabled"] or env["library_type"] == "shared_library":
         env.Append(CCFLAGS=["-sSIDE_MODULE=2"])
         env.Append(LINKFLAGS=["-sSIDE_MODULE=2"])
         env.Append(CCFLAGS=["-fvisibility=hidden"])
         env.Append(LINKFLAGS=["-fvisibility=hidden"])
-        env.extra_suffix = ".dlink" + env.extra_suffix
+
+    if env["library_type"] == "executable":
+        env["EXPORTED_FUNCTIONS"] += ["_main"]
+
+    if env["library_type"] == "shared_library":
+        env.Append(LINKFLAGS=["-sEXPORT_KEEPALIVE=1"])
+        env["EXPORTED_FUNCTIONS_SHARED"] += [
+            "_libgodot_create_godot_instance", 
+            "_libgodot_destroy_godot_instance",
+            "_web_iteration",
+        ]  
 
     env.Append(LINKFLAGS=["-sWASM_BIGINT"])
     env.Append(CCFLAGS=[f"-sMEMORY64={0 if env['arch'] == 'wasm32' else 1}"])
     env.Append(LINKFLAGS=[f"-sMEMORY64={0 if env['arch'] == 'wasm32' else 1}"])
 
-    # Run the main application in a web worker
+    # Configure offscreen canvas.
+    canvas_was_auto = env["use_offscreen_canvas"] == "auto"
+    if env["use_offscreen_canvas"] == "auto":
+        env["use_offscreen_canvas"] = "yes" if env["proxy_to_pthread"] else "no"
+
+    # Run the main application in a web worker.
     if env["proxy_to_pthread"]:
-        env.Append(LINKFLAGS=["-sPROXY_TO_PTHREAD=1"])
-        env.Append(CPPDEFINES=["PROXY_TO_PTHREAD_ENABLED"])
-        env["EXPORTED_RUNTIME_METHODS"] += ["_emscripten_proxy_main"]
-        # https://github.com/emscripten-core/emscripten/issues/18034#issuecomment-1277561925
-        env.Append(LINKFLAGS=["-sTEXTDECODER=0"])
+        env.AppendUnique(LINKFLAGS=["-sPROXY_TO_PTHREAD=1"])
+        env.AppendUnique(CPPDEFINES=["PROXY_TO_PTHREAD_ENABLED"])
+
+    # Mono gets configured too late to affect this. Not sure what to do here
+    if env["threads"] and env["module_mono_enabled"]:
+        # C# main thread on the web is not actually true main thread https://github.com/dotnet/runtime/issues/101421
+        # Configuring better support for enabled multithreading with proxy support
+        env["use_offscreen_canvas"] = "yes" if canvas_was_auto else env["use_offscreen_canvas"]
+        # Enabling support for PROXY_TO_PTHREAD without actually using it
+        env.AppendUnique(CPPDEFINES=["PROXY_TO_PTHREAD_ENABLED"])
+        if env["proxy_to_pthread"]:
+            print_error('Multithreaded C# can\'t use "proxy_to_pthread=yes".')
+            sys.exit(255)
+
+    # Try to use offscreen canvas.
+    if env["use_offscreen_canvas"] == "yes":
+        env.AppendUnique(LINKFLAGS=["-sOFFSCREENCANVAS_SUPPORT=1"])
+        env.AppendUnique(CPPDEFINES=["OFFSCREENCANVAS_ENABLED"])
+        if env["lto"] != "none" and env["threads"]:
+            env.Append(LINKFLAGS=["-Wl,-u,_emscripten_set_offscreencanvas_size_on_thread"])
 
     # Enable WebAssembly SIMD
     if env["wasm_simd"]:
@@ -320,9 +385,8 @@ def configure(env: "SConsEnvironment"):
     # Wrap the JavaScript support code around a closure named Godot.
     env.Append(LINKFLAGS=["-sMODULARIZE=1", "-sEXPORT_NAME='Godot'"])
 
-    # Force long jump mode to 'wasm'
-    env.Append(CCFLAGS=["-sSUPPORT_LONGJMP='wasm'"])
-    env.Append(LINKFLAGS=["-sSUPPORT_LONGJMP='wasm'"])
+    env.Append(CCFLAGS=["-sSUPPORT_LONGJMP=wasm"])
+    env.Append(LINKFLAGS=["-sSUPPORT_LONGJMP=wasm"])
 
     # Allow increasing memory buffer size during runtime. This is efficient
     # when using WebAssembly (in comparison to asm.js) and works well for

@@ -132,6 +132,7 @@ env.__class__.add_shared_library = methods.add_shared_library
 env.__class__.add_library = methods.add_library
 env.__class__.add_program = methods.add_program
 env.__class__.CommandNoCache = methods.CommandNoCache
+env.__class__.add_configuration_file = methods.add_configuration_file
 env.__class__.Run = methods.Run
 env.__class__.disable_warnings = methods.disable_warnings
 env.__class__.force_optimization_on_debug = methods.force_optimization_on_debug
@@ -269,6 +270,7 @@ opts.Add(
         True,
     )
 )
+opts.Add(BoolVariable("disable_crash_handler", "Disable crash handler if it exists", False))
 opts.Add("build_profile", "Path to a file containing a feature build profile", "")
 opts.Add("custom_modules", "A list of comma-separated directory paths containing custom modules to build.", "")
 opts.Add(BoolVariable("custom_modules_recursive", "Detect custom modules recursively for each specified path.", True))
@@ -859,7 +861,7 @@ else:
         if methods.is_apple_clang(env):
             # Apple Clang, its linker doesn't like -s.
             env.AppendUnique(LINKFLAGS=["-Wl,-S", "-Wl,-x", "-Wl,-dead_strip"])
-        else:
+        elif not methods.using_emcc(env):
             env.AppendUnique(LINKFLAGS=["-s"])
 
     # Linker needs optimization flags too, at least for Emscripten.
@@ -917,6 +919,11 @@ if env["disable_exceptions"]:
         env.Append(CXXFLAGS=["-fno-exceptions"])
 elif env.msvc:
     env.Append(CXXFLAGS=["/EHsc"])
+
+# Disable crash handler. Mainly useful when using Godot as a library as some runtimes install
+# their own signal handlers, so they both will try to register their own signal handlers
+if env["disable_crash_handler"]:
+    env.AppendUnique(CPPDEFINES=["DISABLE_CRASH_HANDLER"])
 
 # Configure compiler warnings
 env.AppendUnique(CCFLAGS=["$WARNLEVEL"])
@@ -1027,8 +1034,6 @@ suffix += "." + env["arch"]
 if not env["threads"]:
     suffix += ".nothreads"
 
-suffix += env.extra_suffix
-
 sys.path.remove(tmppath)
 sys.modules.pop("detect")
 
@@ -1123,6 +1128,8 @@ for name, path in modules_detected.items():
 
 env.module_list = modules_enabled
 methods.sort_module_list(env)
+
+suffix += env.extra_suffix
 
 if env.editor_build:
     # Add editor-specific dependencies to the dependency graph.

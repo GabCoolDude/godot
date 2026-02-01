@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  crash_handler_windows.h                                               */
+/*  set_offscreen_canvas_size.js                                          */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,33 +28,19 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
-// Crash handler exception only enabled with MSVC
-#if defined(DEBUG_ENABLED)
-#define CRASH_HANDLER_EXCEPTION 1
-#endif
-
-#if defined(DISABLE_CRASH_HANDLER)
-#undef CRASH_HANDLER_EXCEPTION
-#endif
-
-#if defined(CRASH_HANDLER_EXCEPTION) && defined(_MSC_VER)
-extern DWORD CrashHandlerException(EXCEPTION_POINTERS *ep);
-#endif
-
-class CrashHandler {
-	bool disabled;
-
-public:
-	void initialize();
-
-	void disable();
-	bool is_disabled() const { return disabled; }
-
-	CrashHandler();
-	~CrashHandler();
+// This is only needed if offscreen canvas is being used on the main thread.
+// We are only calling it from JS, so it's fine that wasm is already imported the old version.
+// https://github.com/emscripten-core/emscripten/issues/26394
+const original_emscripten_set_canvas_element_size = _emscripten_set_canvas_element_size;
+_emscripten_set_canvas_element_size = (target, width, height) => {
+    const result = original_emscripten_set_canvas_element_size(target, width, height);
+    const canvasRecord = GL.offscreenCanvases[GodotRuntime.parseString(target).slice(1)];
+    if (canvasRecord && canvasRecord.canvas) {
+        const canvas = canvasRecord.canvas;
+        canvas.width = width;
+        canvas.height = height;
+        if (canvas.GLctxObject) GL.resizeOffscreenFramebuffer(canvas.GLctxObject);
+    }
+    return result;
 };
+

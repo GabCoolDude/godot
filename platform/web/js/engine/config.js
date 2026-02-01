@@ -250,6 +250,9 @@ const InternalConfig = function (initConfig) { // eslint-disable-line no-unused-
 			}
 			return config[key];
 		}
+		// Common config 
+		this.canvas = parse('canvas', this.canvas);
+
 		// Module config
 		this.unloadAfterInit = parse('unloadAfterInit', this.unloadAfterInit);
 		this.onPrintError = parse('onPrintError', this.onPrintError);
@@ -257,7 +260,6 @@ const InternalConfig = function (initConfig) { // eslint-disable-line no-unused-
 		this.onProgress = parse('onProgress', this.onProgress);
 
 		// Godot config
-		this.canvas = parse('canvas', this.canvas);
 		this.executable = parse('executable', this.executable);
 		this.mainPack = parse('mainPack', this.mainPack);
 		this.locale = parse('locale', this.locale);
@@ -278,13 +280,37 @@ const InternalConfig = function (initConfig) { // eslint-disable-line no-unused-
 
 	/**
 	 * @ignore
+	 */
+	Config.prototype.checkCanvas = function () {
+		// Try to find a canvas
+		if (!(this.canvas instanceof HTMLCanvasElement)) {
+			const nodes = document.getElementsByTagName('canvas');
+			if (nodes.length && nodes[0] instanceof HTMLCanvasElement) {
+				const first = nodes[0];
+				this.canvas = /** @type {!HTMLCanvasElement} */ (first);
+			}
+			if (!this.canvas) {
+				throw new Error('No canvas found in page');
+			}
+		}
+	}
+
+	/**
+	 * @ignore
 	 * @param {string} loadPath
 	 * @param {Response} response
 	 */
 	Config.prototype.getModuleConfig = function (loadPath, response) {
+		this.checkCanvas();
+
+		// Extract directory path if it exists.
+		const dirPath = loadPath.split("/").slice(0, -1).join("/");
+
 		let r = response;
 		const gdext = this.gdextensionLibs;
 		return {
+			// if OFFSCREENCANVAS_SUPPORT is enabled it will try to use it for OffscreenCanvas
+			'canvas': this.canvas,
 			'print': this.onPrint,
 			'printErr': this.onPrintError,
 			'thisProgram': this.executable,
@@ -305,21 +331,32 @@ const InternalConfig = function (initConfig) { // eslint-disable-line no-unused-
 				r = null;
 				return {};
 			},
+			'getPreloadedWasm': function () {
+				const response = r;
+				r = null;
+				return response;
+			},
 			'locateFile': function (path) {
-				if (!path.startsWith('godot.')) {
-					return path;
-				} else if (path.endsWith('.audio.worklet.js')) {
-					return `${loadPath}.audio.worklet.js`;
-				} else if (path.endsWith('.audio.position.worklet.js')) {
-					return `${loadPath}.audio.position.worklet.js`;
-				} else if (path.endsWith('.js')) {
-					return `${loadPath}.js`;
-				} else if (path in gdext) {
-					return path;
-				} else if (path.endsWith('.side.wasm')) {
-					return `${loadPath}.side.wasm`;
-				} else if (path.endsWith('.wasm')) {
-					return `${loadPath}.wasm`;
+				if (path.startsWith('godot.')) {
+					if (path.endsWith('.audio.worklet.js')) {
+						return `${loadPath}.audio.worklet.js`;
+					} else if (path.endsWith('.audio.position.worklet.js')) {
+						return `${loadPath}.audio.position.worklet.js`;
+					} else if (path.endsWith('.js')) {
+						return `${loadPath}.js`;
+					} else if (path in gdext) {
+						return path;
+					} else if (path.endsWith('.side.wasm')) {
+						return `${loadPath}.side.wasm`;
+					} else if (path.endsWith('.wasm')) {
+						return `${loadPath}.wasm`;
+					}
+				}
+				if (path.startsWith('dotnet.')) {
+					if (path === "dotnet.native.wasm") {
+						return `${loadPath}.wasm`;
+					}
+					return `${dirPath}/_framework/${path}`;
 				}
 				return path;
 			},
@@ -331,17 +368,8 @@ const InternalConfig = function (initConfig) { // eslint-disable-line no-unused-
 	 * @param {function()} cleanup
 	 */
 	Config.prototype.getGodotConfig = function (cleanup) {
-		// Try to find a canvas
-		if (!(this.canvas instanceof HTMLCanvasElement)) {
-			const nodes = document.getElementsByTagName('canvas');
-			if (nodes.length && nodes[0] instanceof HTMLCanvasElement) {
-				const first = nodes[0];
-				this.canvas = /** @type {!HTMLCanvasElement} */ (first);
-			}
-			if (!this.canvas) {
-				throw new Error('No canvas found in page');
-			}
-		}
+		this.checkCanvas();
+
 		// Canvas can grab focus on click, or key events won't work.
 		if (this.canvas.tabIndex < 0) {
 			this.canvas.tabIndex = 0;

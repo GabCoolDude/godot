@@ -174,6 +174,16 @@ void memdelete_allocator(T *p_class) {
 		} \
 	}
 
+template <typename T>
+void memdestroy_at(T *p_class) {
+	if (!predelete_handler(p_class)) {
+		return; // doesn't want to be deleted
+	}
+	if constexpr (!std::is_trivially_destructible_v<T>) {
+		p_class->~T();
+	}
+}
+
 #define memnew_arr(m_class, m_count) memnew_arr_template<m_class>(m_count)
 
 _FORCE_INLINE_ uint64_t *_get_element_count_ptr(uint8_t *p_ptr) {

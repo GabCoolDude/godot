@@ -19,4 +19,7 @@ def configure(env, env_mono):
     if env.editor_build:
         if not module_supports_tools_on(env["platform"]):
             raise RuntimeError("This module does not currently support building for this platform for editor builds.")
-        env_mono.Append(CPPDEFINES=["GD_MONO_HOT_RELOAD"])
+        env_mono.AppendUnique(CPPDEFINES=["GD_MONO_HOT_RELOAD"])
+
+    if env["library_type"] != "executable":
+        env_mono.AppendUnique(CPPDEFINES=["GD_MONO_LIBGODOT_ENABLED"])

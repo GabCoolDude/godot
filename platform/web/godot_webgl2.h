@@ -44,10 +44,15 @@ extern "C" {
 
 void godot_webgl2_glFramebufferTextureMultiviewOVR(GLenum target, GLenum attachment, GLuint texture, GLint level, GLint baseViewIndex, GLsizei numViews);
 void godot_webgl2_glFramebufferTextureMultisampleMultiviewOVR(GLenum target, GLenum attachment, GLuint texture, GLint level, GLsizei samples, GLint baseViewIndex, GLsizei numViews);
-void godot_webgl2_glGetBufferSubData(GLenum target, GLintptr offset, GLsizeiptr size, GLvoid *data);
+void godot_webgl2_wrapper_glGetBufferSubData(GLenum target, GLintptr offset, GLsizeiptr size, GLvoid *data);
 
-#define glFramebufferTextureMultiviewOVR godot_webgl2_glFramebufferTextureMultiviewOVR
-#define glFramebufferTextureMultisampleMultiviewOVR godot_webgl2_glFramebufferTextureMultisampleMultiviewOVR
+void godot_webgl2_glFramebufferTextureMultiviewOVRDirect(GLenum target, GLenum attachment, GLuint texture, GLint level, GLint baseViewIndex, GLsizei numViews);
+void godot_webgl2_glFramebufferTextureMultisampleMultiviewOVRDirect(GLenum target, GLenum attachment, GLuint texture, GLint level, GLsizei samples, GLint baseViewIndex, GLsizei numViews);
+void godot_webgl2_glGetBufferSubDataDirect(GLenum target, GLintptr offset, GLsizeiptr size, GLvoid *data);
+
+#define glFramebufferTextureMultiviewOVR godot_webgl2_glFramebufferTextureMultiviewOVRDirect
+#define glFramebufferTextureMultisampleMultiviewOVR godot_webgl2_glFramebufferTextureMultisampleMultiviewOVRDirect
+#define godot_webgl2_glGetBufferSubData godot_webgl2_glGetBufferSubDataDirect
 
 #ifdef __cplusplus
 }

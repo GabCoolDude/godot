@@ -161,6 +161,48 @@ def detect_mvk(env, osname):
     return ""
 
 
+def filter_file_libs(libs):
+    from SCons.Script import Flatten
+    from SCons.Node.FS import File
+
+    sources = []
+
+    for lib in Flatten(libs):
+        if isinstance(lib, File):
+            sources.append(lib)
+    return sources
+
+
+def combine_libs_ar(target, source, env):
+    from SCons.Script import Flatten
+    import tempfile
+
+    lib_path = target[0].srcnode().abspath
+    paths = [lib.srcnode().abspath for lib in Flatten(source)]
+    paths = [path for path in paths if path.endswith(".a") or path.endswith(".lib")]
+    for lib in Flatten(env["LIBS"]):
+        if isinstance(lib, str) and (lib.endswith(".a") or lib.endswith(".lib")):
+            paths.append(lib)
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.mri', delete_on_close=False) as fp:
+        fp.write(f"create {lib_path}\n")
+        for path in paths:
+            fp.write(f"addlib {path}\n")
+        fp.write(f"save\n")
+        fp.write(f"end")
+        fp.close()
+
+        env.Execute(f"$AR -M <{fp.name}")
+
+    # Doesn't work on web https://github.com/llvm/llvm-project/issues/50623 ,
+    # but looks like web doesn't need it? Maybe it is because it's still mono on web
+    if env["platform"] != "web" and env["module_mono_enabled"]:
+        # Fix duplicate vtables for Object
+        env.Execute(f'$OBJCOPY --redefine-sym _ZTV6Object=_ZTV6_godot_Object "{lib_path}"')
+
+    env.Execute(f'$RANLIB "{lib_path}"')
+
+
 def combine_libs_apple_embedded(target, source, env):
     lib_path = target[0].srcnode().abspath
     if "osxcross" in env:

@@ -46,6 +46,9 @@
 #include "main/main.h"
 
 #include "modules/modules_enabled.gen.h" // For websocket.
+#ifdef THREADS_ENABLED
+#include "web_queue.h"
+#endif
 
 #include <dlfcn.h>
 #include <emscripten.h>
@@ -60,6 +63,9 @@ void OS_Web::initialize() {
 	OS_Unix::initialize_core();
 	IPWeb::make_default();
 	NetSocketWeb::make_default();
+#ifdef THREADS_ENABLED
+	WebQueue::initialize();
+#endif
 	DisplayServerWeb::register_web_driver();
 }
 
@@ -87,7 +93,9 @@ bool OS_Web::main_loop_iterate() {
 		idb_needs_sync = false;
 		godot_js_os_fs_sync(&fs_sync_callback);
 	}
-
+#ifdef THREADS_ENABLED
+	WebQueue::execute_queue();
+#endif
 	DisplayServer::get_singleton()->process_events();
 
 	return Main::iteration();
@@ -101,11 +109,17 @@ void OS_Web::delete_main_loop() {
 }
 
 void OS_Web::finalize() {
+#ifdef THREADS_ENABLED
+	WebQueue::execute_queue();
+#endif
 	delete_main_loop();
 	for (AudioDriverWeb *driver : audio_drivers) {
 		memdelete(driver);
 	}
 	audio_drivers.clear();
+#ifdef THREADS_ENABLED
+	WebQueue::destroy();
+#endif
 }
 
 // Miscellaneous

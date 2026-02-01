@@ -610,6 +610,55 @@ def CommandNoCache(env, target, sources, command, **args):
     return result
 
 
+def add_configuration_file(env, name, opts=None, **args):
+    from SCons.Script import Flatten
+    from SCons.Node.FS import File
+    import json
+
+    libs = []
+    for lib in Flatten(env["LIBS"]):
+        if isinstance(lib, str) and not (lib.endswith(".a") or lib.endswith(".lib")):
+            libs.append(lib)
+        elif isinstance(lib, File):
+            path = lib.srcnode().abspath
+            if not (path.endswith(".a") or path.endswith(".lib")):
+                libs.append(path)
+
+    opts_default = {
+        "CFLAGS": env.subst("$CFLAGS"),
+        "CXXFLAGS": env.subst("$CXXFLAGS"),
+        "CCFLAGS": env.subst("$CCFLAGS"),
+        "LINKFLAGS": env.subst("$LINKFLAGS"),
+        "LIBS": ";".join(libs),
+        "THREADS": "true" if env["threads"] else "false",
+    }
+    if isinstance(opts, dict):
+        opts_default.update(opts)
+        opts = opts_default
+    else:
+        opts = opts_default
+
+    config_file_json = env.Textfile(f"{name}.json", [env.Literal(json.dumps(opts, indent=4))], **args)
+    config_files = config_file_json
+
+    if env["module_mono_enabled"]:
+        props_lines = []
+        for key, value in opts.items():
+            props_lines.append(env.Literal(f"        <GODOT_{key}>{value}</GODOT_{key}>"))
+
+        config_file_props = env.Textfile(f"{name}.props", [
+            "<Project>",
+            "    <PropertyGroup>",
+        ] + props_lines + [
+            "    </PropertyGroup>",
+            "</Project>",
+        ], **args)
+        config_files += config_file_props
+
+    env.NoCache(config_files)
+    return config_files
+
+
 def Run(env, function, comstr="$GENCOMSTR"):
     from SCons.Script import Action
 

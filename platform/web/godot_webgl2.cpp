@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  crash_handler_windows.h                                               */
+/*  godot_webgl2.cpp                                                      */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,33 +28,35 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
+#include "godot_webgl2.h"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
-// Crash handler exception only enabled with MSVC
-#if defined(DEBUG_ENABLED)
-#define CRASH_HANDLER_EXCEPTION 1
+#ifdef THREADS_ENABLED
+#include "web_queue.h"
 #endif
 
-#if defined(DISABLE_CRASH_HANDLER)
-#undef CRASH_HANDLER_EXCEPTION
+void godot_webgl2_glFramebufferTextureMultiviewOVRDirect(GLenum target, GLenum attachment, GLuint texture, GLint level, GLint baseViewIndex, GLsizei numViews) {
+#ifdef THREADS_ENABLED
+	if (WebQueue::proxy_canvas_sync(godot_webgl2_glFramebufferTextureMultiviewOVR, target, attachment, texture, level, baseViewIndex, numViews)) {
+		return;
+	}
 #endif
+	godot_webgl2_glFramebufferTextureMultiviewOVR(target, attachment, texture, level, baseViewIndex, numViews);
+}
 
-#if defined(CRASH_HANDLER_EXCEPTION) && defined(_MSC_VER)
-extern DWORD CrashHandlerException(EXCEPTION_POINTERS *ep);
+void godot_webgl2_glFramebufferTextureMultisampleMultiviewOVRDirect(GLenum target, GLenum attachment, GLuint texture, GLint level, GLsizei samples, GLint baseViewIndex, GLsizei numViews) {
+#ifdef THREADS_ENABLED
+	if (WebQueue::proxy_canvas_sync(godot_webgl2_glFramebufferTextureMultisampleMultiviewOVR, target, attachment, texture, level, samples, baseViewIndex, numViews)) {
+		return;
+	}
 #endif
+	godot_webgl2_glFramebufferTextureMultisampleMultiviewOVR(target, attachment, texture, level, samples, baseViewIndex, numViews);
+}
 
-class CrashHandler {
-	bool disabled;
-
-public:
-	void initialize();
-
-	void disable();
-	bool is_disabled() const { return disabled; }
-
-	CrashHandler();
-	~CrashHandler();
-};
+void godot_webgl2_glGetBufferSubDataDirect(GLenum target, GLintptr offset, GLsizeiptr size, GLvoid *data) {
+#ifdef THREADS_ENABLED
+	if (WebQueue::proxy_canvas_sync(godot_webgl2_wrapper_glGetBufferSubData, target, offset, size, data)) {
+		return;
+	}
+#endif
+	godot_webgl2_wrapper_glGetBufferSubData(target, offset, size, data);
+}

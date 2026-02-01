@@ -16,6 +16,7 @@ namespace Godot.SourceGenerators
             if (context.IsGodotToolsProject() || context.IsGodotSourceGeneratorDisabled("GodotPluginsInitializer"))
                 return;
 
+            // Proof of concept change 'internal' later
             string source =
                 @"using System;
 using System.Runtime.InteropServices;
@@ -27,7 +28,7 @@ namespace GodotPlugins.Game
     internal static partial class Main
     {
         [UnmanagedCallersOnly(EntryPoint = ""godotsharp_game_main_init"")]
-        private static godot_bool InitializeFromGameProject(IntPtr godotDllHandle, IntPtr outManagedCallbacks,
+        internal static godot_bool InitializeFromGameProject(IntPtr godotDllHandle, IntPtr outManagedCallbacks,
             IntPtr unmanagedCallbacks, int unmanagedCallbacksSize)
         {
             try

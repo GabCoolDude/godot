@@ -46,6 +46,11 @@
 #include "core/object/callable_method_pointer.h"
 #endif
 
+#ifdef THREADS_ENABLED
+#include "web_queue.h"
+#include <pthread.h>
+#endif
+
 #ifdef GLES3_ENABLED
 #include "drivers/gles3/rasterizer_gles3.h"
 #endif
@@ -77,8 +82,7 @@ bool DisplayServerWeb::check_size_force_redraw() {
 
 void DisplayServerWeb::fullscreen_change_callback(int p_fullscreen) {
 #ifdef PROXY_TO_PTHREAD_ENABLED
-	if (!Thread::is_main_thread()) {
-		callable_mp_static(DisplayServerWeb::_fullscreen_change_callback).call_deferred(p_fullscreen);
+	if (WebQueue::proxy_main_async(_fullscreen_change_callback, p_fullscreen)) {
 		return;
 	}
 #endif
@@ -175,8 +179,7 @@ void DisplayServerWeb::key_callback(int p_pressed, int p_repeat, int p_modifiers
 	const String key = String::utf8(key_event.key);
 
 #ifdef PROXY_TO_PTHREAD_ENABLED
-	if (!Thread::is_main_thread()) {
-		callable_mp_static(DisplayServerWeb::_key_callback).call_deferred(code, key, p_pressed, p_repeat, p_modifiers);
+	if (WebQueue::proxy_main_async(_key_callback, code, key, p_pressed, p_repeat, p_modifiers)) {
 		return;
 	}
 #endif
@@ -228,8 +231,7 @@ void DisplayServerWeb::_key_callback(const String &p_key_event_code, const Strin
 
 int DisplayServerWeb::mouse_button_callback(int p_pressed, int p_button, double p_x, double p_y, int p_modifiers) {
 #ifdef PROXY_TO_PTHREAD_ENABLED
-	if (!Thread::is_main_thread()) {
-		callable_mp_static(DisplayServerWeb::_mouse_button_callback).call_deferred(p_pressed, p_button, p_x, p_y, p_modifiers);
+	if (WebQueue::proxy_main_async(_mouse_button_callback, p_pressed, p_button, p_x, p_y, p_modifiers)) {
 		return true;
 	}
 #endif
@@ -315,8 +317,7 @@ int DisplayServerWeb::_mouse_button_callback(int p_pressed, int p_button, double
 
 void DisplayServerWeb::mouse_move_callback(double p_x, double p_y, double p_rel_x, double p_rel_y, int p_modifiers, double p_pressure) {
 #ifdef PROXY_TO_PTHREAD_ENABLED
-	if (!Thread::is_main_thread()) {
-		callable_mp_static(DisplayServerWeb::_mouse_move_callback).call_deferred(p_x, p_y, p_rel_x, p_rel_y, p_modifiers, p_pressure);
+	if (WebQueue::proxy_main_async(_mouse_move_callback, p_x, p_y, p_rel_x, p_rel_y, p_modifiers, p_pressure)) {
 		return;
 	}
 #endif
@@ -644,8 +645,7 @@ Point2i DisplayServerWeb::mouse_get_position() const {
 // Wheel
 int DisplayServerWeb::mouse_wheel_callback(int p_delta_mode, double p_delta_x, double p_delta_y) {
 #ifdef PROXY_TO_PTHREAD_ENABLED
-	if (!Thread::is_main_thread()) {
-		callable_mp_static(DisplayServerWeb::_mouse_wheel_callback).call_deferred(p_delta_mode, p_delta_x, p_delta_y);
+	if (WebQueue::proxy_main_async(_mouse_wheel_callback, p_delta_mode, p_delta_x, p_delta_y)) {
 		return true;
 	}
 #endif
@@ -730,8 +730,7 @@ int DisplayServerWeb::_mouse_wheel_callback(int p_delta_mode, double p_delta_x, 
 // Touch
 void DisplayServerWeb::touch_callback(int p_type, int p_count) {
 #ifdef PROXY_TO_PTHREAD_ENABLED
-	if (!Thread::is_main_thread()) {
-		callable_mp_static(DisplayServerWeb::_touch_callback).call_deferred(p_type, p_count);
+	if (WebQueue::proxy_main_async(_touch_callback, p_type, p_count)) {
 		return;
 	}
 #endif
@@ -788,8 +787,7 @@ void DisplayServerWeb::vk_input_text_callback(const char *p_text, int p_cursor) 
 	String text = String::utf8(p_text);
 
 #ifdef PROXY_TO_PTHREAD_ENABLED
-	if (!Thread::is_main_thread()) {
-		callable_mp_static(DisplayServerWeb::_vk_input_text_callback).call_deferred(text, p_cursor);
+	if (WebQueue::proxy_main_async(_vk_input_text_callback, text, p_cursor)) {
 		return;
 	}
 #endif
@@ -850,8 +848,7 @@ void DisplayServerWeb::gamepad_callback(int p_index, int p_connected, const char
 	String guid = p_guid;
 
 #ifdef PROXY_TO_PTHREAD_ENABLED
-	if (!Thread::is_main_thread()) {
-		callable_mp_static(DisplayServerWeb::_gamepad_callback).call_deferred(p_index, p_connected, id, guid);
+	if (WebQueue::proxy_main_async(_gamepad_callback, p_index, p_connected, id, guid)) {
 		return;
 	}
 #endif
@@ -1122,9 +1119,6 @@ DisplayServerWeb::DisplayServerWeb(const String &p_rendering_driver, WindowMode 
 	// Ensure the canvas ID.
 	godot_js_config_canvas_id_get(canvas_id, 256);
 
-	// Handle contextmenu, webglcontextlost
-	godot_js_display_setup_canvas(p_resolution.x, p_resolution.y, (p_window_mode == WINDOW_MODE_FULLSCREEN || p_window_mode == WINDOW_MODE_EXCLUSIVE_FULLSCREEN), OS::get_singleton()->is_hidpi_allowed() ? 1 : 0);
-
 	// Check if it's windows.
 	swap_cancel_ok = godot_js_display_is_swap_ok_cancel() == 1;
 
@@ -1140,6 +1134,11 @@ DisplayServerWeb::DisplayServerWeb(const String &p_rendering_driver, WindowMode 
 		attributes.antialias = false;
 		attributes.majorVersion = 2;
 		attributes.explicitSwapControl = true;
+#ifdef OFFSCREENCANVAS_ENABLED
+		// Enable fallback in case offscreen canvas is enabled, but is not available.
+		attributes.renderViaOffscreenBackBuffer = true;
+		attributes.proxyContextToMainThread = EMSCRIPTEN_WEBGL_CONTEXT_PROXY_FALLBACK;
+#endif
 
 		webgl_ctx = emscripten_webgl_create_context(canvas_id, &attributes);
 		webgl2_inited = webgl_ctx && emscripten_webgl_make_context_current(webgl_ctx) == EMSCRIPTEN_RESULT_SUCCESS;
@@ -1159,6 +1158,14 @@ DisplayServerWeb::DisplayServerWeb(const String &p_rendering_driver, WindowMode 
 	}
 #else
 	RasterizerDummy::make_current();
+#endif
+
+	// Handle contextmenu, webglcontextlost
+	godot_js_display_setup_canvas(p_resolution.x, p_resolution.y, (p_window_mode == WINDOW_MODE_FULLSCREEN || p_window_mode == WINDOW_MODE_EXCLUSIVE_FULLSCREEN), OS::get_singleton()->is_hidpi_allowed() ? 1 : 0);
+
+#ifdef THREADS_ENABLED
+	// DisplayServerWeb::create_func gets called by Main::setup2 which marks the current thread as main
+	WebQueue::setup_canvas_thread(godot_js_display_check_canvas() != 0);
 #endif
 
 	// JS Input interface (js/libs/library_godot_input.js)
@@ -1195,6 +1202,10 @@ DisplayServerWeb::~DisplayServerWeb() {
 		emscripten_webgl_commit_frame();
 		emscripten_webgl_destroy_context(webgl_ctx);
 	}
+#endif
+#if THREADS_ENABLED
+	WebQueue::execute_queue();
+	WebQueue::reset_threads();
 #endif
 }
 
