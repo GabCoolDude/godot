@@ -179,12 +179,6 @@ namespace GodotTools.Export
             if (!TryDeterminePlatformFromOSName(osName, out string? platform))
                 throw new NotSupportedException("Target platform not supported.");
 
-            if (!new[] { OS.Platforms.Windows, OS.Platforms.LinuxBSD, OS.Platforms.MacOS, OS.Platforms.Android, OS.Platforms.iOS }
-                    .Contains(platform))
-            {
-                throw new NotImplementedException("Target platform not yet implemented.");
-            }
-
             bool useAndroidLinuxBionic = (bool)GetOption("dotnet/android_use_linux_bionic");
             PublishConfig publishConfig = new()
             {
@@ -225,7 +219,15 @@ namespace GodotTools.Export
                 }
             }
 
+            if (features.Contains("wasm32"))
+            {
+                publishConfig.Archs.Add("wasm32");
+            }
+
             var targets = new List<PublishConfig> { publishConfig };
+
+            var baseDir = ProjectSettings.GlobalizePath(path.GetBaseDir());
+            var customProperties = new Godot.Collections.Array();
 
             if (platform == OS.Platforms.iOS)
             {
@@ -240,9 +242,15 @@ namespace GodotTools.Export
                 });
             }
 
+            if (platform == OS.Platforms.Web)
+            {
+                customProperties.Add($"WasmEnableThreads={((bool)GetOption("variant/thread_support") ? "true" : "false")}");
+                customProperties.Add($"BaseLibGodotPath=\"{Path.Combine(baseDir, "libgodot")}\"");
+            }
+
             List<string> outputPaths = new();
 
-            bool embedBuildResults = ((bool)GetOption("dotnet/embed_build_outputs") || platform == OS.Platforms.Android) && platform != OS.Platforms.MacOS;
+            bool embedBuildResults = ((bool)GetOption("dotnet/embed_build_outputs") || platform == OS.Platforms.Android) && (platform != OS.Platforms.MacOS || platform != OS.Platforms.Web);
 
             var exportedJars = new HashSet<string>();
 
@@ -284,7 +292,7 @@ namespace GodotTools.Export
 
                     // Execute dotnet publish.
                     if (!BuildManager.PublishProjectBlocking(buildConfig, platform,
-                            runtimeIdentifier, publishOutputDir, includeDebugSymbols))
+                            runtimeIdentifier, publishOutputDir, includeDebugSymbols, customProperties))
                     {
                         throw new InvalidOperationException("Failed to build project. Check MSBuild panel for details.");
                     }
@@ -299,11 +307,20 @@ namespace GodotTools.Export
                     string assemblyPath = Path.Combine(publishOutputDir, $"{GodotSharpDirs.ProjectAssemblyName}.dll");
                     string nativeAotPath = Path.Combine(publishOutputDir,
                         $"{GodotSharpDirs.ProjectAssemblyName}.{soExt}");
+                    string webAppBundlePath = Path.Combine(publishOutputDir, "AppBundle");
 
-                    if (!File.Exists(assemblyPath) && !File.Exists(nativeAotPath))
+                    if (!File.Exists(assemblyPath) && !File.Exists(nativeAotPath) && !File.Exists(webAppBundlePath))
                     {
                         throw new NotSupportedException(
-                            $"Publish succeeded but project assembly not found at '{assemblyPath}' or '{nativeAotPath}'.");
+                            $"Publish succeeded but project assembly not found at '{assemblyPath}' or '{nativeAotPath}' or '{webAppBundlePath}'.");
+                    }
+
+                    if (platform == OS.Platforms.Web)
+                    {
+                        // AddSharedObject also populates gdextensionLibs, which we don't want, so move it manually.
+                        Directory.CopyDirectory(webAppBundlePath, baseDir, true);
+                        File.Move(Path.Combine(baseDir, "_framework", "dotnet.native.wasm"), $"{path.GetBaseName()}.wasm");
+                        continue;
                     }
 
                     // For ios simulator builds, skip packaging the build outputs.
@@ -510,6 +527,7 @@ namespace GodotTools.Export
                 "arm64-v8a" => "arm64",
                 "arm32" => "arm",
                 "arm64" => "arm64",
+                "wasm32" => "wasm",
                 _ => throw new ArgumentOutOfRangeException(nameof(arch), arch, "Unexpected architecture")
             };
         }

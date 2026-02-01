@@ -1,0 +1,19 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>exe</OutputType>
+    <EnableDynamicLoading>false</EnableDynamicLoading>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks> <!-- Needs unsafe for now. -->
+    <WasmAppDir>$([System.IO.Path]::Combine($(PublishDir), "AppBundle"))</WasmAppDir>
+
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+
+    <WasmBuildNative>true</WasmBuildNative> <!-- required -->
+    <WasmEnableSIMD>true</WasmEnableSIMD> <!-- -msimd128 -->
+    <WasmInitialHeapSize>32MB</WasmInitialHeapSize> <!-- -sINITIAL_MEMORY= -->
+    <EmccStackSize>5120KB</EmccStackSize> <!-- -sSTACK_SIZE= -->
+
+    <WasmCachePath>$([System.IO.Path]::Combine($(BaseIntermediateOutputPath), "em_cache"))</WasmCachePath>
+    <EmccExtraLDFlags>-sMAX_WEBGL_VERSION=2 -sOFFSCREEN_FRAMEBUFFER=1 -sGL_ENABLE_GET_PROC_ADDRESS=0 -sWASM_BIGINT -sMEMORY64=0 -sENVIRONMENT=web,worker -sALLOW_MEMORY_GROWTH=1 -sINVOKE_RUN=0 -sEXIT_RUNTIME=1 -sGL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0 -sTEXTDECODER=1 -lidbfs.js</EmccExtraLDFlags>
+  </PropertyGroup>
+</Project>

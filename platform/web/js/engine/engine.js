@@ -29,6 +29,7 @@ const Engine = (function () {
 	function Engine(initConfig) { // eslint-disable-line no-shadow
 		this.config = new InternalConfig(initConfig);
 		this.rtenv = null;
+		this.dotnetAssemblyExports = null;
 	}
 
 	/**
@@ -172,10 +173,16 @@ const Engine = (function () {
 							me.rtenv['copyToFS'](file.path, file.buffer);
 						}
 						preloader.preloadedFiles.length = 0; // Clear memory
-						me.rtenv['callMain'](me.config.args);
-						initPromise = null;
-						me.installServiceWorker();
-						resolve();
+
+						// Adds optional support for custom async 'callMain'.
+						Promise.resolve(me.rtenv['callMain'](me.config.args)).then(function () {
+							if (Object.hasOwn(me.rtenv, 'godotSharpExports')) {
+								me.dotnetAssemblyExports = me.rtenv['godotSharpExports'];
+							}
+							initPromise = null;
+							me.installServiceWorker();
+							resolve();
+						});
 					});
 				});
 			},

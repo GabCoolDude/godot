@@ -30,6 +30,9 @@ namespace GodotTools.ProjectEditor
             var net9 = mainGroup.AddProperty("TargetFramework", "net9.0");
             net9.Condition = " '$(GodotTargetPlatform)' == 'android' ";
 
+            var net10 = mainGroup.AddProperty("TargetFramework", "net10.0");
+            net10.Condition = " '$(GodotTargetPlatform)' == 'web' ";
+
             mainGroup.AddProperty("EnableDynamicLoading", "true");
 
             string sanitizedName = IdentifierUtils.SanitizeQualifiedIdentifier(name, allowEmptyIdentifiers: true);
