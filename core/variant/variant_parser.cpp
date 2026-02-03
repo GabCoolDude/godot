@@ -35,6 +35,8 @@
 #include "core/io/resource_uid.h"
 #include "core/object/script_language.h"
 #include "core/string/string_buffer.h"
+#include "editor/editor_node.h"
+#include "scene/main/node.h"
 
 char32_t VariantParser::Stream::get_char() {
 	// is within buffer?
@@ -968,7 +970,20 @@ Error VariantParser::parse_value(Token &token, Variant &value, Stream *p_stream,
 				return ERR_PARSE_ERROR;
 			}
 
-			// Load as empty.
+			get_token(p_stream, token, line, r_err_str);
+
+			if (token.type != TK_STRING) {
+				r_err_str = "Expected string as argument";
+				return ERR_PARSE_ERROR;
+			}
+
+			String str = token.value;
+			Vector<String> splits = str.split("::");
+
+			//SceneTree* tree = SceneTree::get_singleton();
+			//Node* node = tree->get_edited_scene_root()->get_node(splits[0]);
+
+			//value = Signal(node, splits[1]);
 			value = Signal();
 
 			get_token(p_stream, token, line, r_err_str);
@@ -2162,15 +2177,18 @@ Error VariantWriter::write(const Variant &p_variant, StoreStringFunc p_store_str
 				p_store_string_func(p_store_string_ud, "RID(" + itos(rid.get_id()) + ")");
 			}
 		} break;
-
-		// Do not really store these, but ensure that assignments are not empty.
 		case Variant::SIGNAL: {
-			p_store_string_func(p_store_string_ud, "Signal()");
+			Signal signal = p_variant;
+			Node *node = Object::cast_to<Node>(signal.get_object());
+
+			SceneTree *tree = Object::cast_to<SceneTree>(OS::get_singleton()->get_main_loop());
+			NodePath path = tree->get_edited_scene_root()->get_path_to(node);
+
+			p_store_string_func(p_store_string_ud, "Signal(\"" + String(path) + "::" + signal.get_name() + "\")");
 		} break;
 		case Variant::CALLABLE: {
-			p_store_string_func(p_store_string_ud, "Callable()");
+			p_store_string_func(p_store_string_ud, "Callable()"); // Placeholder to prevent crash
 		} break;
-
 		case Variant::OBJECT: {
 			if (unlikely(p_recursion_count > MAX_RECURSION)) {
 				ERR_PRINT("Max recursion reached");

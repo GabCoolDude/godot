@@ -39,6 +39,7 @@ class SceneState : public RefCounted {
 	Vector<StringName> names;
 	Vector<Variant> variants;
 	Vector<NodePath> node_paths;
+	Vector<String> deferred_properties;
 	Vector<PackedInt32Array> id_paths;
 	mutable PackedInt32Array ids;
 	Vector<NodePath> editable_instances;
@@ -124,6 +125,7 @@ public:
 		FLAG_PATH_PROPERTY_IS_NODE = (1 << 30),
 		FLAG_PROP_NAME_MASK = FLAG_PATH_PROPERTY_IS_NODE - 1,
 		FLAG_MASK = (1 << 24) - 1,
+		FLAG_PROPERTY_DEFERRED = (1 << 30),
 	};
 
 	enum GenEditState {
@@ -142,7 +144,7 @@ public:
 	static Ref<Resource> get_remap_resource(const Ref<Resource> &p_resource, HashMap<Node *, HashMap<Ref<Resource>, Ref<Resource>>> &remap_cache, const Ref<Resource> &p_fallback, Node *p_for_scene);
 
 	int find_node_by_path(const NodePath &p_node) const;
-	Variant get_property_value(int p_node, const StringName &p_property, bool &r_found, bool &r_node_deferred) const;
+	Variant get_property_value(int p_node, const StringName &p_property, bool &r_found, bool &r_node_deferred, bool &r_prop_deferred) const;
 	bool is_node_in_group(int p_node, const StringName &p_group) const;
 	bool is_connection(int p_node, const StringName &p_signal, int p_to_node, const StringName &p_to_method) const;
 
@@ -190,6 +192,7 @@ public:
 	StringName get_node_property_name(int p_idx, int p_prop) const;
 	Variant get_node_property_value(int p_idx, int p_prop) const;
 	Vector<String> get_node_deferred_nodepath_properties(int p_idx) const;
+	Vector<String> get_node_deferred_properties(int p_idx) const;
 
 	int get_connection_count() const;
 	NodePath get_connection_source(int p_idx) const;

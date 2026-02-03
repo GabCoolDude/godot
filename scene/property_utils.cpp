@@ -109,7 +109,8 @@ Variant PropertyUtils::get_property_default_value(const Object *p_object, const 
 			const SceneState::PackState &ia = states_stack[i];
 			bool found = false;
 			bool node_deferred = false;
-			Variant value_in_ancestor = ia.state->get_property_value(ia.node, p_property, found, node_deferred);
+			bool property_deferred = false;
+			Variant value_in_ancestor = ia.state->get_property_value(ia.node, p_property, found, node_deferred, property_deferred);
 			if (found) {
 				if (r_is_valid) {
 					*r_is_valid = true;
@@ -134,11 +135,14 @@ Variant PropertyUtils::get_property_default_value(const Object *p_object, const 
 						value_in_ancestor = node->get_node_or_null(value_in_ancestor);
 					}
 				}
+				if (property_deferred) {
+					value_in_ancestor = Signal(node, p_property);
+				}
 				return value_in_ancestor;
 			}
 			// Save script for later
 			bool has_script = false;
-			Variant script = ia.state->get_property_value(ia.node, SNAME("script"), has_script, node_deferred);
+			Variant script = ia.state->get_property_value(ia.node, SNAME("script"), has_script, node_deferred, property_deferred);
 			if (has_script) {
 				Ref<Script> scr = script;
 				if (scr.is_valid()) {

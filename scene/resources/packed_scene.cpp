@@ -194,6 +194,7 @@ Node *SceneState::instantiate(GenEditState p_edit_state) const {
 	HashMap<Node *, HashMap<Ref<Resource>, Ref<Resource>>> resources_local_to_scenes; // Record the mappings in sub-scenes.
 
 	LocalVector<DeferredNodePathProperties> deferred_node_paths;
+	LocalVector<DeferredNodePathProperties> local_deferred_properties;
 
 	bool deep_search_warned = false;
 
@@ -378,18 +379,60 @@ Node *SceneState::instantiate(GenEditState p_edit_state) const {
 							uint32_t name_idx = nprops[j].name & (FLAG_PATH_PROPERTY_IS_NODE - 1);
 							ERR_FAIL_UNSIGNED_INDEX_V(name_idx, (uint32_t)sname_count, nullptr);
 
-							node->set(snames[name_idx], props[nprops[j].value], &valid);
+							Variant value = props[nprops[j].value];
+							if (value.get_type() == Variant::OBJECT) {
+								if (value.get_validated_object()->is_class("Node")) {
+									node->set(snames[name_idx], value, &valid);
+								}
+							}
 							continue;
 						}
 
 						uint32_t name_idx = nprops[j].name & (FLAG_PATH_PROPERTY_IS_NODE - 1);
 						ERR_FAIL_UNSIGNED_INDEX_V(name_idx, (uint32_t)sname_count, nullptr);
 
-						DeferredNodePathProperties dnp;
-						dnp.value = props[nprops[j].value];
-						dnp.base = node->get_instance_id();
-						dnp.property = snames[name_idx];
-						deferred_node_paths.push_back(dnp);
+						Variant value = props[nprops[j].value];
+						if (value.get_type() == Variant::OBJECT) {
+							if (!value.get_validated_object()->is_class("Node")) {
+								DeferredNodePathProperties dnp;
+								dnp.value = value;
+								dnp.base = node->get_instance_id();
+								dnp.property = snames[name_idx];
+								deferred_node_paths.push_back(dnp);
+							}
+						}
+						continue;
+					}
+
+					if (nprops[j].name & FLAG_PROPERTY_DEFERRED) {
+						if (!Engine::get_singleton()->is_editor_hint() && node->get_scene_instance_load_placeholder()) {
+							// We cannot know if the referenced nodes exist yet, we write the property directly.
+
+							uint32_t name_idx = nprops[j].name & (FLAG_PROPERTY_DEFERRED - 1);
+							ERR_FAIL_UNSIGNED_INDEX_V(name_idx, (uint32_t)sname_count, nullptr);
+
+							Variant value = props[nprops[j].value];
+							if (value.get_type() == Variant::OBJECT) {
+								if (!value.get_validated_object()->is_class("Node")) {
+									node->set(snames[name_idx], value, &valid);
+								}
+							}
+							continue;
+						}
+
+						uint32_t name_idx = nprops[j].name & (FLAG_PROPERTY_DEFERRED - 1);
+						ERR_FAIL_UNSIGNED_INDEX_V(name_idx, (uint32_t)sname_count, nullptr);
+
+						Variant value = props[nprops[j].value];
+						if (value.get_type() == Variant::OBJECT) {
+							if (!value.get_validated_object()->is_class("Node")) {
+								DeferredNodePathProperties dnp;
+								dnp.value = value;
+								dnp.base = node->get_instance_id();
+								dnp.property = snames[name_idx];
+								local_deferred_properties.push_back(dnp);
+							}
+						}
 						continue;
 					}
 
@@ -635,6 +678,51 @@ Node *SceneState::instantiate(GenEditState p_edit_state) const {
 			base->set(dnp.property, dict);
 		} else {
 			base->set(dnp.property, base->get_node_or_null(dnp.value));
+		}
+	}
+
+	for (const DeferredNodePathProperties &dp : local_deferred_properties) {
+		Node *base = ObjectDB::get_instance<Node>(dp.base);
+		ERR_CONTINUE_EDMSG(!base, vformat("Failed to set deferred property '%s' as the base node disappeared.", dp.property));
+		if (dp.value.get_type() == Variant::ARRAY) {
+			Array paths = dp.value;
+
+			bool valid;
+			Array array = base->get(dp.property, &valid);
+			ERR_CONTINUE_EDMSG(!valid, vformat("Failed to get property '%s' from node '%s'.", dp.property, base->get_name()));
+			array = array.duplicate();
+
+			array.resize(paths.size());
+			for (int i = 0; i < array.size(); i++) {
+				array.set(i, Signal(base->get_node_or_null(paths[i]), dp.property));
+			}
+			base->set(dp.property, array);
+		} else if (dp.value.get_type() == Variant::DICTIONARY) {
+			Dictionary paths = dp.value;
+
+			bool valid;
+			Dictionary dict = base->get(dp.property, &valid);
+			ERR_CONTINUE_EDMSG(!valid, vformat("Failed to get property '%s' from node '%s'.", dp.property, base->get_name()));
+			dict = dict.duplicate();
+			bool convert_key = dict.get_typed_key_builtin() == Variant::OBJECT &&
+					ClassDB::is_parent_class(dict.get_typed_key_class_name(), "Node");
+			bool convert_value = dict.get_typed_value_builtin() == Variant::OBJECT &&
+					ClassDB::is_parent_class(dict.get_typed_value_class_name(), "Node");
+
+			for (const KeyValue<Variant, Variant> &kv : paths) {
+				Variant key = kv.key;
+				if (convert_key) {
+					key = Signal(base->get_node_or_null(key), dp.property);
+				}
+				Variant value = kv.value;
+				if (convert_value) {
+					value = Signal(base->get_node_or_null(value), dp.property);
+				}
+				dict[key] = value;
+			}
+			base->set(dp.property, dict);
+		} else {
+			base->set(dp.property, Signal(base->get_node_or_null(dp.value), dp.property));
 		}
 	}
 
@@ -1001,6 +1089,9 @@ Error SceneState::_parse_node(Node *p_owner, Node *p_node, int p_parent_idx, Has
 		prop.value = _vm_get_variant(value, variant_map);
 		if (use_deferred_node_path_bit) {
 			prop.name |= FLAG_PATH_PROPERTY_IS_NODE;
+		}
+		if (E.type == Variant::SIGNAL) {
+			prop.name |= FLAG_PROPERTY_DEFERRED;
 		}
 		nd.properties.push_back(prop);
 	}
@@ -1447,6 +1538,7 @@ void SceneState::clear() {
 	connections.clear();
 	node_path_cache.clear();
 	node_paths.clear();
+	deferred_properties.clear();
 	editable_instances.clear();
 	ids.clear();
 	id_paths.clear();
@@ -1475,6 +1567,9 @@ Error SceneState::copy_from(const Ref<SceneState> &p_scene_state) {
 	}
 	for (const NodePath &E : p_scene_state->node_paths) {
 		node_paths.append(E);
+	}
+	for (const Variant &E : p_scene_state->deferred_properties) {
+		deferred_properties.append(E);
 	}
 	for (const PackedInt32Array &E : p_scene_state->id_paths) {
 		id_paths.append(E);
@@ -1541,9 +1636,10 @@ int SceneState::_find_base_scene_node_remap_key(int p_idx) const {
 	return -1;
 }
 
-Variant SceneState::get_property_value(int p_node, const StringName &p_property, bool &r_found, bool &r_node_deferred) const {
+Variant SceneState::get_property_value(int p_node, const StringName &p_property, bool &r_found, bool &r_node_deferred, bool &r_prop_deferred) const {
 	r_found = false;
 	r_node_deferred = false;
+	r_prop_deferred = false;
 
 	ERR_FAIL_COND_V(p_node < 0, Variant());
 
@@ -1556,6 +1652,7 @@ Variant SceneState::get_property_value(int p_node, const StringName &p_property,
 		for (int i = 0; i < pc; i++) {
 			if (p_property == namep[p[i].name & FLAG_PROP_NAME_MASK]) {
 				r_found = true;
+				r_prop_deferred = p[i].name & FLAG_PROPERTY_DEFERRED;
 				r_node_deferred = p[i].name & FLAG_PATH_PROPERTY_IS_NODE;
 				return variants[p[i].value];
 			}
@@ -1565,7 +1662,7 @@ Variant SceneState::get_property_value(int p_node, const StringName &p_property,
 	// Property not found, try on instance.
 	HashMap<int, int>::ConstIterator I = base_scene_node_remap.find(p_node);
 	if (I) {
-		return get_base_scene_state()->get_property_value(I->value, p_property, r_found, r_node_deferred);
+		return get_base_scene_state()->get_property_value(I->value, p_property, r_found, r_node_deferred, r_prop_deferred);
 	}
 
 	return Variant();
@@ -1738,6 +1835,16 @@ void SceneState::set_bundled_scene(const Dictionary &p_dictionary) {
 		node_paths.write[i] = np[i];
 	}
 
+	Array dp;
+	if (p_dictionary.has("deferred_properties")) {
+		dp = p_dictionary["deferred_properties"];
+	}
+
+	deferred_properties.resize(dp.size());
+	for (int i = 0; i < dp.size(); i++) {
+		deferred_properties.write[i] = dp[i];
+	}
+
 	Array idp;
 	if (p_dictionary.has("id_paths") && ids.size()) {
 		idp = p_dictionary["id_paths"];
@@ -1834,6 +1941,13 @@ Dictionary SceneState::get_bundled_scene() const {
 		rnode_paths[i] = node_paths[i];
 	}
 	d["node_paths"] = rnode_paths;
+
+	Array deferred;
+	deferred.resize(deferred_properties.size());
+	for (int i = 0; i < deferred_properties.size(); i++) {
+		deferred[i] = deferred_properties[i];
+	}
+	d["deferred_properties"] = deferred;
 
 	Array rid_paths;
 	rid_paths.resize(id_paths.size());
@@ -2098,7 +2212,7 @@ Vector<String> SceneState::get_node_deferred_nodepath_properties(int p_idx) cons
 		// Find in built-in nodes.
 		for (int i = 0; i < nodes[p_idx].properties.size(); i++) {
 			uint32_t idx = nodes[p_idx].properties[i].name;
-			if (idx & FLAG_PATH_PROPERTY_IS_NODE) {
+			if (idx & FLAG_PATH_PROPERTY_IS_NODE && !deferred_properties.has(names[idx & FLAG_PROP_NAME_MASK].operator String())) {
 				ret.push_back(names[idx & FLAG_PROP_NAME_MASK]);
 			}
 		}
@@ -2109,6 +2223,30 @@ Vector<String> SceneState::get_node_deferred_nodepath_properties(int p_idx) cons
 	HashMap<int, int>::ConstIterator I = base_scene_node_remap.find(p_idx);
 	if (I) {
 		return get_base_scene_state()->get_node_deferred_nodepath_properties(I->value);
+	}
+
+	return ret;
+}
+
+Vector<String> SceneState::get_node_deferred_properties(int p_idx) const {
+	Vector<String> ret;
+	ERR_FAIL_COND_V(p_idx < 0, ret);
+
+	if (p_idx < nodes.size()) {
+		// Find in built-in nodes.
+		for (int i = 0; i < nodes[p_idx].properties.size(); i++) {
+			uint32_t idx = nodes[p_idx].properties[i].name;
+			if (idx & FLAG_PROPERTY_DEFERRED && !node_paths.has(names[idx & FLAG_PROP_NAME_MASK].operator String())) {
+				ret.push_back(names[idx & FLAG_PROP_NAME_MASK]);
+			}
+		}
+		return ret;
+	}
+
+	// Property not found, try on instance.
+	HashMap<int, int>::ConstIterator I = base_scene_node_remap.find(p_idx);
+	if (I) {
+		return get_base_scene_state()->get_node_deferred_properties(I->value);
 	}
 
 	return ret;

@@ -285,6 +285,8 @@ protected:
 	static void _bind_methods();
 
 public:
+	ConnectionsDockTree *get_dock_tree() const { return tree; }
+
 	void set_object(Object *p_object);
 	void update_tree();
 

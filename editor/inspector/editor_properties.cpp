@@ -45,6 +45,7 @@
 #include "editor/inspector/editor_properties_vector.h"
 #include "editor/inspector/editor_resource_picker.h"
 #include "editor/inspector/property_selector.h"
+#include "editor/scene/connections_dialog.h"
 #include "editor/scene/scene_tree_editor.h"
 #include "editor/script/script_editor_plugin.h"
 #include "editor/settings/editor_settings.h"
@@ -1644,28 +1645,112 @@ EditorPropertyObjectID::EditorPropertyObjectID() {
 
 ///////////////////// SIGNAL /////////////////////////
 
+void EditorPropertySignal::_update_tree() {
+	ERR_FAIL_NULL(node);
+	connections->set_object(node);
+	connections->update_tree();
+}
+
 void EditorPropertySignal::_edit_pressed() {
-	Signal signal = get_edited_property_value();
-	emit_signal(SNAME("object_id_selected"), get_edited_property(), signal.get_object_id());
+	// Set default node to inspected node
+	EditorInspector *inspector = get_parent_inspector();
+	if (inspector) {
+		inspector = inspector->get_root_inspector();
+		node = cast_to<Node>(inspector->get_edited_object());
+	} else {
+		node = cast_to<Node>(get_edited_object());
+	}
+	_update_tree();
+	connection_dialog->popup_centered();
+}
+
+void EditorPropertySignal::_dialog_visibility_changed() {
+	signal_tree->deselect_all();
+	scene_tree_editor->set_selected(nullptr, false);
+}
+
+void EditorPropertySignal::_scene_tree_node_selected() {
+	node = scene_tree_editor->get_selected();
+	_update_tree();
+}
+
+void EditorPropertySignal::_signal_item_activated() {
+	TreeItem *item = signal_tree->get_selected();
+	if (!item) {
+		return;
+	}
+
+	// Check parenting to see if the item selected represents a signal
+	if (item->get_parent()->get_parent() != signal_tree->get_root()) {
+		return;
+	}
+
+	const Dictionary sinfo = item->get_metadata(0);
+	const StringName signal_name = sinfo["name"];
+	signal = Signal(node, signal_name);
+	update_property();
+	connection_dialog->hide();
 }
 
 void EditorPropertySignal::update_property() {
-	String type = base_type;
-
-	Signal signal = get_edited_property_value();
-
-	edit->set_text("Signal: " + signal.get_name());
-	edit->set_disabled(false);
+	get_edited_object()->set(get_edited_property(), signal);
+	edit->set_text(signal.is_null() ? "<none>" : signal.get_name());
 	edit->set_button_icon(get_editor_theme_icon(SNAME("Signals")));
 }
 
 EditorPropertySignal::EditorPropertySignal() {
 	edit = memnew(Button);
+	edit->set_clip_text(true);
+	edit->set_disabled(is_read_only());
 	edit->set_theme_type_variation(SNAME("EditorInspectorButton"));
 	edit->set_accessibility_name(TTRC("Edit"));
 	add_child(edit);
 	add_focusable(edit);
 	edit->connect(SceneStringName(pressed), callable_mp(this, &EditorPropertySignal::_edit_pressed));
+
+	connection_dialog = memnew(ConfirmationDialog);
+	connection_dialog->set_min_size(Size2(400, 800) * EDSCALE);
+	connection_dialog->set_title(TTRC("Select a Signal"));
+	connection_dialog->set_ok_button_text(TTRC("Select"));
+	connection_dialog->connect("visibility_changed", callable_mp(this, &EditorPropertySignal::_dialog_visibility_changed));
+	add_child(connection_dialog);
+
+	MarginContainer *margin = memnew(MarginContainer);
+	margin->set_v_size_flags(SIZE_EXPAND_FILL);
+	connection_dialog->add_child(margin);
+
+	VBoxContainer *vbox = memnew(VBoxContainer);
+	margin->add_child(vbox);
+
+	scene_tree_editor = memnew(SceneTreeEditor(false));
+	scene_tree_editor->set_stretch_ratio(0.4);
+	scene_tree_editor->set_v_size_flags(SIZE_EXPAND_FILL);
+	scene_tree_editor->set_update_when_invisible(false);
+	scene_tree_editor->set_connecting_signal(true);
+	scene_tree_editor->set_show_enabled_subscene(true);
+	scene_tree_editor->get_scene_tree()->set_theme_type_variation("TreeSecondary");
+	scene_tree_editor->connect("node_selected", callable_mp(this, &EditorPropertySignal::_scene_tree_node_selected));
+	vbox->add_child(scene_tree_editor);
+
+	// To avoid duplicating logic to display signals inside a Tree,
+	// we instantiate a ConnectionsDock to steal the ConnectionsDockTree from.
+	connections = memnew(ConnectionsDock);
+	connections->hide();
+	connection_dialog->add_child(connections);
+
+	signal_tree = connections->get_dock_tree();
+	signal_tree->set_v_size_flags(SIZE_EXPAND_FILL);
+	signal_tree->set_theme_type_variation("TreeSecondary");
+	signal_tree->connect("item_activated", callable_mp(this, &EditorPropertySignal::_signal_item_activated));
+
+	// Disconnect all signals for the ConnectionsDockTree to "override" behavior from regular ConnectionsDock
+	List<Connection> *signal_connections = memnew(List<Connection>);
+	signal_tree->get_signals_connected_to_this(signal_connections);
+	for (Connection signal_connection : *signal_connections) {
+		signal_connection.signal.disconnect(signal_connection.callable);
+	}
+
+	signal_tree->reparent(vbox); // Reparent the Tree to be visible
 }
 
 ///////////////////// CALLABLE /////////////////////////

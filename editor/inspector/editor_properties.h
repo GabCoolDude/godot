@@ -32,6 +32,8 @@
 
 #include "editor/inspector/editor_inspector.h"
 
+class SceneTreeEditor;
+class ConnectionsDock;
 class CheckBox;
 class ColorPickerButton;
 class ConfirmationDialog;
@@ -45,6 +47,7 @@ class MenuButton;
 class SceneTreeDialog;
 class TextEdit;
 class TextureButton;
+class Tree;
 
 struct EditorPropertyRangeHint {
 	bool or_greater = true;
@@ -426,9 +429,20 @@ public:
 
 class EditorPropertySignal : public EditorProperty {
 	GDCLASS(EditorPropertySignal, EditorProperty);
+
+	Node *node = nullptr;
+	SceneTreeEditor *scene_tree_editor = nullptr;
+	Tree *signal_tree = nullptr;
+	Signal signal;
+	ConnectionsDock *connections = nullptr;
+	ConfirmationDialog *connection_dialog = nullptr;
+
 	Button *edit = nullptr;
-	String base_type;
+	void _update_tree();
 	void _edit_pressed();
+	void _dialog_visibility_changed();
+	void _scene_tree_node_selected();
+	void _signal_item_activated();
 
 public:
 	virtual void update_property() override;

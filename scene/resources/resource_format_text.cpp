@@ -2011,6 +2011,7 @@ Error ResourceFormatSaverTextInstance::save(const String &p_path, const Ref<Reso
 			String instance_placeholder = state->get_node_instance_placeholder(i);
 			Vector<StringName> groups = state->get_node_groups(i);
 			Vector<String> deferred_node_paths = state->get_node_deferred_nodepath_properties(i);
+			Vector<String> deferred_properties = state->get_node_deferred_properties(i);
 
 			String header = "[node";
 			header += " name=\"" + String(name).c_escape() + "\"";
@@ -2040,6 +2041,10 @@ Error ResourceFormatSaverTextInstance::save(const String &p_path, const Ref<Reso
 
 			if (deferred_node_paths.size()) {
 				header += " node_paths=" + Variant(deferred_node_paths).get_construct_string();
+			}
+
+			if (deferred_properties.size()) {
+				header += " deferred_properties=" + Variant(deferred_properties).get_construct_string();
 			}
 
 			if (groups.size()) {
