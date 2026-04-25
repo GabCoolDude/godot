@@ -91,7 +91,7 @@ void EditorHTTPServer::_send_response() {
 	const String req_file = path.get_file();
 	const String req_ext = path.get_extension();
 	const String cache_path = EditorPaths::get_singleton()->get_temp_dir().path_join("web");
-	const String filepath = cache_path.path_join(req_file);
+	const String filepath = cache_path.path_join(path);
 
 	if (!mimes.has(req_ext) || !FileAccess::exists(filepath)) {
 		String s = "HTTP/1.1 404 Not Found\r\n";
@@ -243,12 +243,14 @@ bool EditorHTTPServer::is_listening() const {
 }
 
 EditorHTTPServer::EditorHTTPServer() {
+	mimes["dat"] = "application/octet-stream";
 	mimes["html"] = "text/html";
 	mimes["js"] = "application/javascript";
 	mimes["json"] = "application/json";
 	mimes["pck"] = "application/octet-stream";
 	mimes["png"] = "image/png";
 	mimes["svg"] = "image/svg";
+	mimes["symbols"] = "text/plain";
 	mimes["wasm"] = "application/wasm";
 	server.instantiate();
 	stop();
